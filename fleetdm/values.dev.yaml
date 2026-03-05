@@ -1,0 +1,17 @@
+# dev environment overrides
+# not for production use — see Configuration section in README for production secrets approach
+mysql:
+  auth:
+    rootPassword: rootpassword
+    password: fleetpassword
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # since TLS is disabled locally
+  hosts:
+    - host: fleet.local
+      paths:
+        - path: /
+          pathType: Prefix
