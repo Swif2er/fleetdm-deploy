@@ -1,0 +1,139 @@
+{{- $fullName := include "fleetdm.fullname" . -}}
+{{/*
+  Service addresses: use the override from values.yaml if set,
+  otherwise compute from the release name so they always resolve correctly.
+*/}}
+{{- $mysqlAddr := .Values.fleet.mysqlAddress | default (printf "%s-mysql:3306" $fullName) -}}
+{{- $redisAddr := .Values.fleet.redisAddress | default (printf "%s-redis:6379" $fullName) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "fleetdm.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "fleetdm.serverSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "fleetdm.serverSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "fleetdm.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        # 1. Block until MySQL is accepting TCP connections
+        - name: wait-for-mysql
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for MySQL at {{ $mysqlAddr }} ..."
+              until nc -z -w 1 {{ $mysqlAddr | splitList ":" | first }} {{ $mysqlAddr | splitList ":" | last }}; do
+                echo "  MySQL not ready – retrying in 3s"
+                sleep 3
+              done
+              echo "MySQL is up."
+        # 2. Block until Redis is accepting TCP connections
+        - name: wait-for-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Redis at {{ $redisAddr }} ..."
+              until nc -z -w 1 {{ $redisAddr | splitList ":" | first }} {{ $redisAddr | splitList ":" | last }}; do
+                echo "  Redis not ready – retrying in 3s"
+                sleep 3
+              done
+              echo "Redis is up."
+        # 3. Run Fleet database migrations (idempotent – safe to re-run on restart)
+        - name: fleet-prepare-db
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/bin/fleet", "prepare", "db", "--no-prompt"]
+          env:
+            - name: FLEET_MYSQL_ADDRESS
+              value: {{ $mysqlAddr | quote }}
+            - name: FLEET_MYSQL_DATABASE
+              value: {{ .Values.mysql.auth.database | quote }}
+            - name: FLEET_MYSQL_USERNAME
+              value: {{ .Values.mysql.auth.username | quote }}
+            - name: FLEET_MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullName }}-mysql
+                  key: mysql-password
+            - name: FLEET_REDIS_ADDRESS
+              value: {{ $redisAddr | quote }}
+            - name: FLEET_SERVER_TLS
+              value: {{ .Values.fleet.serverTLS | quote }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: FLEET_MYSQL_ADDRESS
+              value: {{ $mysqlAddr | quote }}
+            - name: FLEET_MYSQL_DATABASE
+              value: {{ .Values.mysql.auth.database | quote }}
+            - name: FLEET_MYSQL_USERNAME
+              value: {{ .Values.mysql.auth.username | quote }}
+            - name: FLEET_MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $fullName }}-mysql
+                  key: mysql-password
+            - name: FLEET_REDIS_ADDRESS
+              value: {{ $redisAddr | quote }}
+            - name: FLEET_SERVER_TLS
+              value: {{ .Values.fleet.serverTLS | quote }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

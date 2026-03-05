@@ -1,0 +1,11 @@
+
+FleetDM deployed to namespace {{ .Release.Namespace }}.
+
+Pods:
+  kubectl get pods -n {{ .Release.Namespace }}
+
+Access the UI:
+  kubectl port-forward svc/{{ include "fleetdm.fullname" . }} 8080:8080 -n {{ .Release.Namespace }}
+  open http://localhost:8080
+
+Note: first install runs DB migrations — allow ~60s for MySQL to init before Fleet is ready.
