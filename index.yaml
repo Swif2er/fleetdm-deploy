@@ -3,6 +3,16 @@ entries:
   fleetdm:
   - apiVersion: v2
     appVersion: v4.81.1
+    created: "2026-03-05T23:02:18.155006083Z"
+    description: FleetDM Helm chart with MySQL and Redis
+    digest: ed1fa35d9c90b2376447c7ac2b03683e8ac7dea131135e96073973cbecc06dea
+    name: fleetdm
+    type: application
+    urls:
+    - https://github.com/Swif2er/fleetdm-deploy/releases/download/fleetdm-0.1.2/fleetdm-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: v4.81.1
     created: "2026-03-05T21:37:45.196111875Z"
     description: FleetDM Helm chart with MySQL and Redis
     digest: a63f4f34afcb01619a60cc79fac270d7a16389c7524e7ed9a09381090c417646
@@ -11,4 +21,4 @@ entries:
     urls:
     - https://github.com/Swif2er/fleetdm-deploy/releases/download/fleetdm-0.1.1/fleetdm-0.1.1.tgz
     version: 0.1.1
-generated: "2026-03-05T21:37:45.196123537Z"
+generated: "2026-03-05T23:02:18.155019227Z"
